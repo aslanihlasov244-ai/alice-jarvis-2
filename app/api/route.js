@@ -1,93 +1,61 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-export const runtime = "edge";
+// Используем nodejs вместо edge для стабильности с Gemini
+export const runtime = "nodejs"; 
 
 export async function POST(request) {
   try {
-    let body;
-    if (typeof request.json === "function") {
-      body = await request.json();
-    } else if (typeof request.text === "function") {
-      const text = await request.text();
-      body = JSON.parse(text);
-    } else {
-      body = request.body;
-    }
+    // Читаем тело запроса безопасно
+    const body = await request.json();
+    
+    // Получаем текст пользователя
+    const userMessage = body?.request?.command?.trim() || 
+                        body?.request?.original_utterance?.trim();
 
-    const userMessage = body?.request?.command?.trim() || body?.request?.original_utterance?.trim();
-
-    // Если это первый запуск навыка (приветствие от Алисы)
+    // Приветствие при старте навыка
     if (!userMessage) {
-      return new Response(
-        JSON.stringify({
-          response: { text: "Привет! Я твой умный голосовой помощник Мой Джарвис. О чём ты хочешь поговорить?", end_session: false },
-          session_state: body?.state?.session || {},
-          version: "1.0",
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({
-          response: { text: "Сервис временно недоступен. Проверьте ключ API.", end_session: false },
-          session_state: body?.state?.session || {},
-          version: "1.0",
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const previousState = body?.state?.session || {};
-    const history = Array.isArray(previousState.history) ? previousState.history.slice(-4) : [];
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      systemInstruction: "Ты дружелюбный голосовой помощник для ребенка. Отвечай по-русски, очень коротко (1-2 предложения), простым и понятным языком. Не используй markdown, списки или эмодзи.",
-    });
-
-    const formattedHistory = history
-      .filter((msg) => msg && msg.text)
-      .map((msg) => ({
-        role: msg.role === "model" ? "model" : "user",
-        parts: [{ text: String(msg.text) }],
-      }));
-
-    const chat = model.startChat({
-      history: formattedHistory,
-    });
-
-    const result = await chat.sendMessage(userMessage);
-    const responseText = result.response.text().trim() || "Я не смог придумать ответ.";
-
-    const nextState = {
-      history: [
-        ...history,
-        { role: "user", text: userMessage },
-        { role: "model", text: responseText },
-      ],
-    };
-
-    return new Response(
-      JSON.stringify({
-        response: { text: responseText, end_session: false },
-        session_state: nextState,
-        version: "1.0",
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
-  } catch (error) {
-    console.error("Ошибка сервера:", error);
-    return new Response(
-      JSON.stringify({
-        response: { text: "Произошла ошибка на стороне сервера. Попробуйте еще раз.", end_session: false },
+      return new Response(JSON.stringify({
+        response: { text: "Привет! Я твой умный помощник Мой Джарвис. О чём поговорим?", end_session: false },
         session_state: {},
         version: "1.0",
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+
+    // Проверяем наличие ключа
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+       console.error("GEMINI_API_KEY is missing!");
+       return new Response(JSON.stringify({
+         response: { text: "Ошибка конфигурации сервера.", end_session: true },
+         session_state: {},
+         version: "1.0",
+       }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    
+    // Модель Flash всегда самая быстрая
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      systemInstruction: "Ты друг ребенка. Отвечай очень коротко (до 10 слов), весело и понятно."
+    });
+
+    // Запрашиваем ответ напрямую без истории (чтобы избежать ошибок парсинга)
+    const result = await model.generateContent(userMessage);
+    const responseText = result.response.text().trim();
+
+    return new Response(JSON.stringify({
+      response: { text: responseText || "Я тут!", end_session: false },
+      session_state: {},
+      version: "1.0",
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+
+  } catch (error) {
+    console.error("Server Error:", error.message);
+    return new Response(JSON.stringify({
+      response: { text: "Что-то пошло не так...", end_session: false },
+      session_state: {},
+      version: "1.0",
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
   }
 }
