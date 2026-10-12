@@ -1,11 +1,9 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Используем nodejs вместо edge для стабильности с Gemini
-export const runtime = "nodejs"; 
+export const runtime = "nodejs"; // Используем nodejs для стабильности
 
 export async function POST(request) {
   try {
-    // Читаем тело запроса безопасно
     const body = await request.json();
     
     // Получаем текст пользователя
@@ -21,7 +19,6 @@ export async function POST(request) {
       }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
 
-    // Проверяем наличие ключа
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
        console.error("GEMINI_API_KEY is missing!");
@@ -52,6 +49,7 @@ export async function POST(request) {
 
   } catch (error) {
     console.error("Server Error:", error.message);
+    // ВАЖНО: Даже при ошибке возвращаем корректный JSON для Алисы
     return new Response(JSON.stringify({
       response: { text: "Что-то пошло не так...", end_session: false },
       session_state: {},
