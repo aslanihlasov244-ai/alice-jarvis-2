@@ -1,32 +1,47 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { NextResponse, NextRequest } from "next/server";
 
 export const runtime = "edge";
 
 export async function POST(request) {
   try {
-    const body = await request.json();
-    const userMessage = body.request?.command?.trim() || body.request?.original_utterance?.trim();
+    // Безопасное чтение JSON для любых версий Next.js и Vercel Edge
+    let body;
+    if (typeof request.json === "function") {
+      body = await request.json();
+    } else if (typeof request.text === "function") {
+      const text = await request.text();
+      body = JSON.parse(text);
+    } else {
+      body = request.body;
+    }
 
+    const userMessage = body?.request?.command?.trim() || body?.request?.original_utterance?.trim();
+
+    // Если это первый запуск навыка (приветствие от Алисы)
     if (!userMessage) {
-      return NextResponse.json({
-        response: { text: "Скажите, чем я могу помочь.", end_session: false },
-        session_state: body.state?.session || {},
-        version: "1.0",
-      });
+      return new Response(
+        JSON.stringify({
+          response: { text: "Привет! Я твой умный голосовой помощник Мой торе. О чём ты хочешь поговорить?", end_session: false },
+          session_state: body?.state?.session || {},
+          version: "1.0",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.error("Критическая ошибка: Переменная GEMINI_API_KEY не найдена!");
-      return NextResponse.json({
-        response: { text: "Сервис временно недоступен.", end_session: false },
-        session_state: body.state?.session || {},
-        version: "1.0",
-      });
+      return new Response(
+        JSON.stringify({
+          response: { text: "Сервис временно недоступен. Проверьте ключ API.", end_session: false },
+          session_state: body?.state?.session || {},
+          version: "1.0",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
     }
 
-    const previousState = body.state?.session || {};
+    const previousState = body?.state?.session || {};
     const history = Array.isArray(previousState.history) ? previousState.history.slice(-4) : [];
 
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -57,17 +72,23 @@ export async function POST(request) {
       ],
     };
 
-    return NextResponse.json({
-      response: { text: responseText, end_session: false },
-      session_state: nextState,
-      version: "1.0",
-    });
+    return new Response(
+      JSON.stringify({
+        response: { text: responseText, end_session: false },
+        session_state: nextState,
+        version: "1.0",
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
   } catch (error) {
-    console.error("Ошибка на сервере:", error);
-    return NextResponse.json({
-      response: { text: "Произошла ошибка. Пожалуйста, повторите запрос.", end_session: false },
-      session_state: body?.state?.session || {},
-      version: "1.0",
-    });
+    console.error("Ошибка сервера:", error);
+    return new Response(
+      JSON.stringify({
+        response: { text: "Произошла ошибка на стороне сервера. Попробуйте еще раз.", end_session: false },
+        session_state: {},
+        version: "1.0",
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
   }
 }
