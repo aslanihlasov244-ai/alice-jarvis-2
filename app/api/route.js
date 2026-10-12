@@ -4,7 +4,6 @@ export const runtime = "edge";
 
 export async function POST(request) {
   try {
-    // Безопасное чтение JSON для любых версий Next.js и Vercel Edge
     let body;
     if (typeof request.json === "function") {
       body = await request.json();
@@ -21,7 +20,7 @@ export async function POST(request) {
     if (!userMessage) {
       return new Response(
         JSON.stringify({
-          response: { text: "Привет! Я твой умный голосовой помощник Мой торе. О чём ты хочешь поговорить?", end_session: false },
+          response: { text: "Привет! Я твой умный голосовой помощник Мой Джарвис. О чём ты хочешь поговорить?", end_session: false },
           session_state: body?.state?.session || {},
           version: "1.0",
         }),
