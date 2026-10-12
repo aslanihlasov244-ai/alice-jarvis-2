@@ -1,6 +1,19 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const runtime = "nodejs";
+export const dynamic = 'force-dynamic'; // Важно для Vercel
+
+// Функция для обработки preflight-запросов (OPTIONS) от браузера/Яндекса
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  });
+}
 
 export async function POST(request) {
   try {
@@ -16,7 +29,13 @@ export async function POST(request) {
         response: { text: "Привет! Я твой умный помощник Мой Джарвис. О чём поговорим?", end_session: false },
         session_state: {},
         version: "1.0",
-      }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }), { 
+        status: 200, 
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*" // <-- ДОБАВЛЕНО
+        } 
+      });
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
@@ -26,7 +45,13 @@ export async function POST(request) {
          response: { text: "Ошибка конфигурации сервера.", end_session: true },
          session_state: {},
          version: "1.0",
-       }), { status: 200, headers: { "Content-Type": "application/json" } });
+       }), { 
+         status: 200, 
+         headers: { 
+           "Content-Type": "application/json",
+           "Access-Control-Allow-Origin": "*" // <-- ДОБАВЛЕНО
+         } 
+       });
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -45,7 +70,13 @@ export async function POST(request) {
       response: { text: responseText || "Я тут!", end_session: false },
       session_state: {},
       version: "1.0",
-    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }), { 
+      status: 200, 
+      headers: { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*" // <-- ДОБАВЛЕНО
+      } 
+    });
 
   } catch (error) {
     console.error("Server Error:", error.message);
@@ -54,6 +85,12 @@ export async function POST(request) {
       response: { text: "Что-то пошло не так...", end_session: false },
       session_state: {},
       version: "1.0",
-    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }), { 
+      status: 200, 
+      headers: { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*" // <-- ДОБАВЛЕНО
+      } 
+    });
   }
 }
